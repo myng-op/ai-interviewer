@@ -1,0 +1,5 @@
+{
+  "name": "GABM AI Interviewer",
+  "description": "A voice-based AI interviewer for social studies and user research, capable of dynamic follow-up questions and real-time transcription.",
+  "requestFramePermissions": ["microphone"]
+}
