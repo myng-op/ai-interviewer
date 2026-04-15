@@ -15,7 +15,10 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       server: { https: true },
       proxy: {
-        '/api': 'http://localhost:3001',
+      '/api': {
+        target: 'http://localhost:3001',
+        ws: true,        // ← forward WebSocket upgrades to Express
+        },
       },
     },
   };

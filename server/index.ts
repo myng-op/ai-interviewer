@@ -8,6 +8,9 @@
 // Run:  npx tsx server/index.ts
 // ---------------------------------------------------------------------------
 
+import 'dotenv/config';
+import { createServer } from 'http';
+import { WebSocketServer, WebSocket as WsSocket } from 'ws';
 import express from 'express';
 import Database from 'better-sqlite3';
 import path from 'path';
@@ -153,11 +156,57 @@ app.get('/api/interviews/:id', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// WebSocket proxy: browser ↔ this server ↔ Azure (API key stays server-side)
+// ---------------------------------------------------------------------------
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ noServer: true });
+
+httpServer.on('upgrade', (req, socket, head) => {
+  if (req.url === '/api/realtime') {
+    wss.handleUpgrade(req, socket as any, head, (clientWs) => {
+      wss.emit('connection', clientWs, req);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+wss.on('connection', (clientWs) => {
+  let host = '';
+  try { host = new URL(process.env.AZURE_ENDPOINT ?? '').host; } catch {}
+  const model  = process.env.AZURE_REALTIME_MODEL ?? 'gpt-realtime-1.5';
+  const apiKey = process.env.AZURE_API_KEY ?? '';
+  const version = process.env.AZURE_API_VERSION ?? '2026-02-23';
+
+  const azureUrl =
+    `wss://${host}/openai/realtime` +
+    `?api-version=${encodeURIComponent(version)}` +
+    `&deployment=${encodeURIComponent(model)}` +
+    `&api-key=${encodeURIComponent(apiKey)}`;
+
+  const azureWs = new WsSocket(azureUrl);
+
+  azureWs.on('open', () => console.log('[proxy] Connected to Azure Realtime'));
+
+  // Bidirectional pipe
+  clientWs.on('message', (data) => { if (azureWs.readyState === WsSocket.OPEN) azureWs.send(data); });
+  azureWs.on('message', (data) => { if (clientWs.readyState === WsSocket.OPEN) clientWs.send(data); });
+
+  clientWs.on('close', () => azureWs.close());
+  azureWs.on('close', () => { if (clientWs.readyState === WsSocket.OPEN) clientWs.close(); });
+
+  clientWs.on('error', (err) => console.error('[proxy] client error:', err));
+  azureWs.on('error', (err) => {
+    console.error('[proxy] Azure error:', err);
+    if (clientWs.readyState === WsSocket.OPEN) clientWs.close();
+  });
+});
+// ---------------------------------------------------------------------------
 // 3. Start
 // ---------------------------------------------------------------------------
 
 const PORT = parseInt(process.env.API_PORT ?? '3001', 10);
-app.listen(PORT, () => {
-  console.log(`[server] API listening on http://localhost:${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`[server] API + WS proxy listening on http://localhost:${PORT}`);
   console.log(`[server] Database: ${DB_PATH}`);
 });

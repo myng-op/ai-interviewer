@@ -49,11 +49,8 @@ export class RealtimeSession {
   // -----------------------------------------------------------------------
 
   async connect(instructions: string): Promise<void> {
-    const wsUrl =
-      `wss://${azureConfig.host}/openai/realtime` +
-      `?api-version=2025-04-01-preview` +
-      `&deployment=${encodeURIComponent(azureConfig.realtimeModel)}` +
-      `&api-key=${encodeURIComponent(azureConfig.apiKey)}`;
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${proto}//${location.host}/api/realtime`;
 
     this.callbacks.onStatusChange('connecting');
 
