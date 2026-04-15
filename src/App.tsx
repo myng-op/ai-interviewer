@@ -15,6 +15,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [results, setResults] = useState<InterviewMessage[]>([]);
+  const [interviewId, setInterviewId] = useState<number | null>(null);
 
   // Load interview script on mount
   useEffect(() => {
@@ -33,6 +34,33 @@ export default function App() {
   const handleInterviewComplete = (messages: InterviewMessage[]) => {
     setResults(messages);
     setView('results');
+  };
+
+  const startNewInterview = async () => {
+    try {
+      const resp = await fetch('/api/interviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantId: 'anonymous',
+          scriptPath: SCRIPT_PATH,
+          totalTimeSec,
+        }),
+      });
+      if (resp.ok) {
+        const { id } = await resp.json();
+        setInterviewId(id);
+        setView('interview');
+        console.log(`Created interview session #${id}`);
+      } else {
+        console.warn('Failed to create interview:', resp.statusText);
+        setView('interview'); // proceed anyway
+      }
+    } catch (err) {
+      console.warn('Could not reach API server — proceeding without persistence:', err);
+      setInterviewId(null);
+      setView('interview');
+    }
   };
 
   const downloadTranscript = () => {
@@ -145,7 +173,7 @@ export default function App() {
                       </div>
 
                       <button
-                        onClick={() => setView('interview')}
+                        onClick={startNewInterview}
                         disabled={loading || !!loadError || questions.length === 0}
                         className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -188,6 +216,7 @@ export default function App() {
                 <InterviewSession 
                   initialQuestions={questions}
                   totalTimeSec={totalTimeSec}
+                  interviewId={interviewId}
                   onComplete={handleInterviewComplete}
                 />
               </motion.div>

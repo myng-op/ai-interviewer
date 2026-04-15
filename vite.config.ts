@@ -13,6 +13,10 @@ export default defineConfig(() => {
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
+      server: { https: true },
+      proxy: {
+        '/api': 'http://localhost:3001',
+      },
     },
   };
 });
